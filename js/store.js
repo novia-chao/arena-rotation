@@ -15,27 +15,28 @@ const DEFAULTS = {
 
 const KEY = "arena-rotation:settings";
 
-const backend = (() => {
+/** Key/value storage over whichever backend this host provides. */
+export const storage = (() => {
   const ext =
     typeof chrome !== "undefined" && chrome.storage && chrome.storage.local;
   if (ext) {
     return {
-      async read() {
-        const bag = await chrome.storage.local.get(KEY);
-        return bag[KEY];
+      async read(key) {
+        const bag = await chrome.storage.local.get(key);
+        return bag[key];
       },
-      async write(value) {
-        await chrome.storage.local.set({ [KEY]: value });
+      async write(key, value) {
+        await chrome.storage.local.set({ [key]: value });
       },
     };
   }
   return {
-    async read() {
-      const raw = localStorage.getItem(KEY);
+    async read(key) {
+      const raw = localStorage.getItem(key);
       return raw ? JSON.parse(raw) : undefined;
     },
-    async write(value) {
-      localStorage.setItem(KEY, JSON.stringify(value));
+    async write(key, value) {
+      localStorage.setItem(key, JSON.stringify(value));
     },
   };
 })();
@@ -46,7 +47,7 @@ export async function load() {
   if (cache) return cache;
   let stored;
   try {
-    stored = await backend.read();
+    stored = await storage.read(KEY);
   } catch {
     stored = undefined;
   }
@@ -65,7 +66,7 @@ export function token() {
 export async function update(patch) {
   const next = { ...(await load()), ...patch };
   cache = next;
-  await backend.write(next);
+  await storage.write(KEY, next);
   return next;
 }
 

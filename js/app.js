@@ -6,6 +6,7 @@
  */
 
 import { Arena, forgetCount, randomBlock } from "./arena.js";
+import { cacheImage, cachedImage, drawCached, remember } from "./offline.js";
 import { afterMount, preload, renderBlock, imageSrc } from "./render.js";
 import * as store from "./store.js";
 import { initSettings } from "./ui.js";
@@ -16,6 +17,43 @@ const arena = new Arena(store.token);
 
 let drawing = false;
 let settingsPanel;
+
+/**
+ * The next block, fetched and decoded while you're still looking at the
+ * current one, so a click swaps instantly instead of waiting on the network.
+ */
+let buffered = null; // { slug, block }
+let prefetching = false;
+
+async function prefetch(slug) {
+  if (prefetching || buffered?.slug === slug) return;
+  prefetching = true;
+  try {
+    const avoid = [...store.recent(), buffered?.block?.id].filter(Boolean);
+    const { block } = await randomBlock(arena, slug, avoid);
+    if (block) {
+      // Only buffer what actually loaded, and stash the image while the
+      // connection is still up so the buffer survives losing it.
+      const ok = await preload(imageSrc(block));
+      if (ok) {
+        buffered = { slug, block };
+        cacheImage(imageSrc(block));
+      }
+    }
+  } catch {
+    // Offline, most likely. The next draw falls back to the cache.
+  } finally {
+    prefetching = false;
+  }
+}
+
+/** Takes the buffered block if it belongs to this channel. */
+function takeBuffered(slug) {
+  if (buffered?.slug !== slug) return null;
+  const { block } = buffered;
+  buffered = null;
+  return block;
+}
 
 function show(node) {
   const outgoing = stage.firstElementChild;
@@ -73,35 +111,62 @@ async function draw({ showSpinner = false } = {}) {
       return;
     }
 
-    let timer;
-    if (showSpinner) {
-      // Only surfaces on a slow network; an instant flash of spinner is worse
-      // than no spinner at all.
-      timer = setTimeout(() => show(spinner()), 450);
+    // A prefetched block is already decoded, so it can go straight up.
+    let block = takeBuffered(channel.slug);
+    let offline = false;
+
+    if (!block) {
+      let timer;
+      if (showSpinner) {
+        // Only surfaces on a slow network; an instant flash of spinner is
+        // worse than no spinner at all.
+        timer = setTimeout(() => show(spinner()), 450);
+      }
+      try {
+        const drawn = await randomBlock(arena, channel.slug, store.recent());
+        clearTimeout(timer);
+        if (!drawn.total) {
+          show(
+            notice(
+              "That channel is empty",
+              `“${channel.title || channel.slug}” has no blocks yet.`,
+            ),
+          );
+          return;
+        }
+        block = drawn.block;
+      } catch (error) {
+        clearTimeout(timer);
+        block = await drawCached(channel.slug, store.recent());
+        offline = true;
+        if (!block) throw error; // nothing cached either — report the failure
+      }
     }
 
-    const { block, total } = await randomBlock(
-      arena,
-      channel.slug,
-      store.recent(),
-    );
-    clearTimeout(timer);
-
-    if (!total) {
-      show(notice("That channel is empty", `“${channel.title || channel.slug}” has no blocks yet.`));
-      return;
-    }
     if (!block) {
       show(notice("Couldn't draw a block", "Try again in a moment."));
       return;
     }
 
     store.remember(block.id);
-    // Decode the image first so the new block never paints half-loaded.
-    await preload(imageSrc(block));
-    const stage = renderBlock(block, { fit: settings.fit, channel });
-    show(stage);
-    afterMount(stage);
+    // Offline, the image has to come from the cache rather than the network.
+    const imageUrl = offline ? await cachedImage(imageSrc(block)) : "";
+    // Decode first so the new block never paints half-loaded.
+    if (!offline) await preload(imageSrc(block));
+
+    const view = renderBlock(block, {
+      fit: settings.fit,
+      channel,
+      imageUrl,
+      offline,
+    });
+    show(view);
+    afterMount(view);
+
+    if (!offline) {
+      remember(block, channel.slug);
+      prefetch(channel.slug);
+    }
   } catch (error) {
     show(notice("Something went wrong", error.message || String(error)));
   } finally {

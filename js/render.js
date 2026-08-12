@@ -6,6 +6,7 @@
  */
 
 import { render as markdown } from "./markdown.js";
+import { cachedImage } from "./offline.js";
 
 const ARENA_WEB = "https://www.are.na";
 
@@ -44,27 +45,53 @@ function when(iso) {
     : d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
 }
 
-/** Resolves once the image is decodable, so we never swap in a half-painted frame. */
+/**
+ * Resolves once the image is decodable, so we never swap in a half-painted
+ * frame. Reports whether it actually loaded — a prefetched block whose image
+ * failed must not be buffered as if it were ready.
+ */
 export function preload(src) {
-  if (!src) return Promise.resolve();
+  if (!src) return Promise.resolve(true);
   const img = new Image();
   img.src = src;
   const done = img.decode ? img.decode() : Promise.resolve();
-  return done.catch(() => {});
+  return done.then(
+    () => true,
+    () => false,
+  );
 }
 
 export function imageSrc(block) {
   return block?.image?.src || "";
 }
 
-function backdrop(block, fit) {
-  const src = imageSrc(block);
+/**
+ * @param imageUrl overrides the network src — an object URL from the offline
+ *                 image cache, when we're drawing without a connection.
+ */
+function backdrop(block, fit, imageUrl) {
+  const src = imageUrl || imageSrc(block);
   if (!src) return null;
   const wrap = el("div", `backdrop backdrop--${fit}`);
   const img = el("img");
   img.src = src;
   img.alt = block.image?.alt_text || block.title || "";
   img.decoding = "async";
+
+  // The network can drop between drawing a block and painting it — a prefetched
+  // block outliving the connection is the common case. Fall back to the cached
+  // copy rather than showing a broken frame.
+  if (!imageUrl) {
+    img.addEventListener(
+      "error",
+      async () => {
+        const cached = await cachedImage(imageSrc(block));
+        if (cached) img.src = cached;
+      },
+      { once: true },
+    );
+  }
+
   wrap.appendChild(img);
   return wrap;
 }
@@ -73,7 +100,7 @@ function backdrop(block, fit) {
 
 function renderImage(block, ctx) {
   const stage = el("div", "block block--image");
-  const shot = backdrop(block, ctx.fit);
+  const shot = backdrop(block, ctx.fit, ctx.imageUrl);
   if (shot) stage.appendChild(shot);
   else stage.appendChild(el("p", "fallback", block.title || "Untitled image"));
 
@@ -109,7 +136,7 @@ function renderText(block, _ctx) {
 
 function renderLinkish(block, ctx, kind) {
   const stage = el("div", `block block--link`);
-  const shot = backdrop(block, "cover");
+  const shot = backdrop(block, "cover", ctx.imageUrl);
   if (shot) {
     shot.classList.add("backdrop--dim");
     stage.appendChild(shot);
@@ -141,7 +168,7 @@ function renderLinkish(block, ctx, kind) {
 
 function renderAttachment(block, ctx) {
   const stage = el("div", "block block--link");
-  const shot = backdrop(block, "cover");
+  const shot = backdrop(block, "cover", ctx.imageUrl);
   if (shot) {
     shot.classList.add("backdrop--dim");
     stage.appendChild(shot);
@@ -217,6 +244,8 @@ function chrome(block, ctx) {
   bar.appendChild(left);
 
   const right = el("div", "meta__group");
+  // Say so rather than passing off a cached block as a fresh draw.
+  if (ctx.offline) right.appendChild(el("span", "meta__badge", "offline"));
   const permalink =
     block.type === "Channel"
       ? `${ARENA_WEB}/${block.owner?.slug || ""}/${block.slug}`
@@ -229,7 +258,7 @@ function chrome(block, ctx) {
 
 /**
  * @param {object} block  an are.na v3 block
- * @param {{fit:string, channel:object}} ctx
+ * @param {{fit:string, channel:object, imageUrl?:string, offline?:boolean}} ctx
  * @returns {HTMLElement} a full-bleed stage for the block
  */
 export function renderBlock(block, ctx) {
