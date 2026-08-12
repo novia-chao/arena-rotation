@@ -1,0 +1,11 @@
+{
+  "name": "arena-rotation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A random are.na block, full bleed — as a website and a Chrome new-tab extension.",
+  "type": "module",
+  "scripts": {
+    "serve": "python3 -m http.server 8000",
+    "verify-token": "node scripts/verify-token.js"
+  }
+}

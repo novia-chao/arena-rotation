@@ -43,6 +43,19 @@ private channels and enables **Import my channels**, which pulls in everything y
 > access to your account, so don't paste it anywhere else, and never commit it —
 > nothing in this repo should ever contain it.
 
+## Checking the authenticated paths
+
+Private channels and **Import my channels** can't be exercised without an account.
+This checks them against the same client the page uses:
+
+```bash
+ARENA_TOKEN='your-token' node scripts/verify-token.js
+```
+
+It reports who you're signed in as, how many channels import, whether the import is
+hitting its page cap, and whether a private channel can be read and drawn from. The
+token is read from the environment — it is never printed or written to a file.
+
 ## Controls
 
 | Action | Key |
