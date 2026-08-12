@@ -70,19 +70,25 @@ async function hasCachedImage(src) {
   }
 }
 
-/** Random cached block for a channel, or null if nothing usable is stored. */
-export async function drawCached(slug, avoid = []) {
-  const pool = await readPool();
-  const mine = pool.filter((entry) => entry.slug === slug).map((e) => e.block);
-  if (!mine.length) return null;
+/**
+ * Random cached block drawn from any of `slugs`, or null if nothing usable is
+ * stored. Returns the slug too, since in all-channels mode the caller doesn't
+ * know which channel it came from.
+ *
+ * @param {string[]} slugs channels the draw may come from
+ */
+export async function drawCached(slugs, avoid = []) {
+  const allowed = new Set(slugs);
+  const pool = (await readPool()).filter((entry) => allowed.has(entry.slug));
+  if (!pool.length) return null;
 
   const usable = [];
-  for (const block of mine) {
-    if (await renderable(block)) usable.push(block);
+  for (const entry of pool) {
+    if (await renderable(entry.block)) usable.push(entry);
   }
   if (!usable.length) return null;
 
-  const fresh = usable.filter((block) => !avoid.includes(block.id));
+  const fresh = usable.filter((entry) => !avoid.includes(entry.block.id));
   const pick = fresh.length ? fresh : usable;
   return pick[Math.floor(Math.random() * pick.length)];
 }
@@ -113,12 +119,14 @@ export async function cacheImage(src) {
   }
 }
 
-let lastObjectUrl = "";
-
 /**
- * A usable src for a cached image, as an object URL. Returns "" on a miss.
- * Only one is held at a time; the previous is revoked so blobs don't pile up.
+ * Object URLs are revoked as they age out. Two are kept rather than one: during
+ * a transition the outgoing block is still painting from the previous URL, and
+ * revoking it immediately can blank it mid-fade.
  */
+const liveObjectUrls = [];
+
+/** A usable src for a cached image, as an object URL. Returns "" on a miss. */
 export async function cachedImage(src) {
   if (!src || !hasCacheApi) return "";
   try {
@@ -127,8 +135,8 @@ export async function cachedImage(src) {
     if (!hit) return "";
 
     const url = URL.createObjectURL(await hit.blob());
-    if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
-    lastObjectUrl = url;
+    liveObjectUrls.push(url);
+    while (liveObjectUrls.length > 2) URL.revokeObjectURL(liveObjectUrls.shift());
     return url;
   } catch {
     return "";

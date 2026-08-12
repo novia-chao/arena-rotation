@@ -70,6 +70,9 @@ export async function update(patch) {
   return next;
 }
 
+/** Sentinel for `active`: rotate across every saved channel. */
+export const ALL_CHANNELS = "*";
+
 /** The channel we should be showing, or null if none is configured yet. */
 export function activeChannel(settings) {
   if (!settings.channels.length) return null;
@@ -77,6 +80,22 @@ export function activeChannel(settings) {
     settings.channels.find((c) => c.slug === settings.active) ||
     settings.channels[0]
   );
+}
+
+/**
+ * The channels a draw may come from — every saved channel in all-channels
+ * mode, otherwise just the active one.
+ *
+ * A draw picks uniformly from this list rather than weighting by block count.
+ * Weighting would make every block equally likely, but it would also let one
+ * 4,000-block channel drown out a carefully kept channel of twelve, and it
+ * would cost a request per channel just to learn the sizes.
+ */
+export function drawPool(settings) {
+  if (!settings.channels.length) return [];
+  if (settings.active === ALL_CHANNELS) return settings.channels;
+  const one = activeChannel(settings);
+  return one ? [one] : [];
 }
 
 /**

@@ -555,6 +555,13 @@ body:hover .icon-button,
   background: rgba(255, 255, 255, 0.045);
 }
 
+.channel--all {
+  margin-bottom: 4px;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--line);
+  border-radius: 8px 8px 0 0;
+}
+
 .channel__label {
   flex: 1;
   display: flex;

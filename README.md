@@ -34,6 +34,13 @@ Open settings with the gear in the corner, or press <kbd>S</kbd>.
 or just its slug (`some-channel`). Add as many as you like and pick which one is
 active — that's the channel you're rotating through.
 
+With more than one saved, an **All channels** option appears at the top of the list
+and draws across every one of them. It picks a channel uniformly, then a block within
+it, rather than weighting by size: weighting would make every block equally likely,
+but it would let one 4,000-block channel drown out a carefully kept channel of twelve.
+A channel that has been deleted or made private is skipped rather than stalling the
+rotation.
+
 **Add a token (optional).** Public channels work with no setup at all. A
 [personal access token](https://www.are.na/settings/oauth) additionally unlocks your
 private channels and enables **Import my channels**, which pulls in everything you own.
@@ -64,14 +71,30 @@ token is never printed or written to a file.
 
 | Action | Key |
 |---|---|
-| Next block | click / tap, <kbd>Space</kbd>, <kbd>R</kbd>, <kbd>→</kbd> |
+| Next block | click / tap, <kbd>Space</kbd>, <kbd>R</kbd> |
+| Back | <kbd>←</kbd> |
+| Forward, then next | <kbd>→</kbd> |
 | Settings | <kbd>S</kbd> |
 | Close settings | <kbd>Esc</kbd> |
+
+<kbd>←</kbd> walks back through the last 30 blocks you've seen in this tab, and
+<kbd>→</kbd> retraces. Drawing a new block from partway back discards what was ahead,
+the same way browser history does. History is per-tab and not persisted.
 
 ## How it works
 
 Nothing runs server-side. `api.are.na` sends `access-control-allow-origin: *`, so the
 browser calls the [v3 API](https://www.are.na/developers) directly.
+
+The next block is fetched and decoded while you're still looking at the current one,
+so a click swaps in about 30ms instead of waiting on a round trip.
+
+Blocks are kept in a pool as you see them, and their images in the Cache API — two
+stores, because a single are.na image runs 1–2 MB while the block JSON is a few KB.
+When are.na can't be reached the pool is drawn from instead, marked with an `offline`
+badge, and limited to blocks whose image is actually cached so a fallback draw can't
+land on an empty frame. Images are self-healing too: the connection can drop between
+drawing a block and painting it, so a failed `<img>` retries from the cache.
 
 Picking a random block never downloads the channel. One request with `?per=1&page=1`
 returns `meta.total_count`; a second with a random `page` returns exactly that block.

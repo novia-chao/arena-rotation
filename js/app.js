@@ -2,7 +2,7 @@
  * Arena Rotation — one random block from an are.na channel, full bleed.
  *
  * Opening the page (or a new tab, when installed as the extension) draws a
- * block. Clicking, tapping or pressing space draws another.
+ * block. Clicking, tapping or pressing space draws another; ← goes back.
  */
 
 import { Arena, forgetCount, randomBlock } from "./arena.js";
@@ -18,46 +18,15 @@ const arena = new Arena(store.token);
 let drawing = false;
 let settingsPanel;
 
-/**
- * The next block, fetched and decoded while you're still looking at the
- * current one, so a click swaps instantly instead of waiting on the network.
- */
-let buffered = null; // { slug, block }
-let prefetching = false;
-
-async function prefetch(slug) {
-  if (prefetching || buffered?.slug === slug) return;
-  prefetching = true;
-  try {
-    const avoid = [...store.recent(), buffered?.block?.id].filter(Boolean);
-    const { block } = await randomBlock(arena, slug, avoid);
-    if (block) {
-      // Only buffer what actually loaded, and stash the image while the
-      // connection is still up so the buffer survives losing it.
-      const ok = await preload(imageSrc(block));
-      if (ok) {
-        buffered = { slug, block };
-        cacheImage(imageSrc(block));
-      }
-    }
-  } catch {
-    // Offline, most likely. The next draw falls back to the cache.
-  } finally {
-    prefetching = false;
-  }
-}
-
-/** Takes the buffered block if it belongs to this channel. */
-function takeBuffered(slug) {
-  if (buffered?.slug !== slug) return null;
-  const { block } = buffered;
-  buffered = null;
-  return block;
-}
+/* ------------------------------------------------------------------ stage */
 
 function show(node) {
-  const outgoing = stage.firstElementChild;
-  if (outgoing) {
+  // Every block still on stage is on its way out — not just the first child.
+  // Navigating faster than the transition leaves several here at once, and
+  // reading only firstElementChild would re-mark the block that is already
+  // leaving while the live one stayed behind forever.
+  for (const outgoing of [...stage.children]) {
+    if (outgoing.classList.contains("block--leaving")) continue;
     outgoing.classList.add("block--leaving");
     outgoing.addEventListener("animationend", () => outgoing.remove(), {
       once: true,
@@ -92,15 +61,142 @@ function spinner() {
   return wrap;
 }
 
+let renderSeq = 0;
+
+/**
+ * Paints an already-resolved draw. Cached images are looked up here rather
+ * than stored on the entry, because object URLs are revoked as they age out
+ * and a history entry can outlive its URL.
+ */
+async function display(entry) {
+  // Holding ← fires navigations faster than they can paint. Each render claims
+  // a sequence number and stale ones bail, so the last key pressed is the one
+  // left on screen regardless of what order the awaits resolve in.
+  const seq = ++renderSeq;
+  const { fit } = await store.load();
+  const imageUrl = entry.offline ? await cachedImage(imageSrc(entry.block)) : "";
+  if (seq !== renderSeq) return;
+
+  const view = renderBlock(entry.block, {
+    fit,
+    channel: entry.channel,
+    imageUrl,
+    offline: entry.offline,
+  });
+  show(view);
+  afterMount(view);
+}
+
+/* ---------------------------------------------------------------- history */
+
+const HISTORY_MAX = 30;
+const history = []; // { block, channel, offline }
+let cursor = -1;
+
+function pushHistory(entry) {
+  history.splice(cursor + 1); // a fresh draw discards anything ahead
+  history.push(entry);
+  if (history.length > HISTORY_MAX) history.shift();
+  cursor = history.length - 1;
+}
+
+async function goBack() {
+  if (cursor <= 0) return false;
+  cursor--;
+  await display(history[cursor]);
+  return true;
+}
+
+async function goForward() {
+  if (cursor >= history.length - 1) return false;
+  cursor++;
+  await display(history[cursor]);
+  return true;
+}
+
+/* --------------------------------------------------------------- prefetch */
+
+/**
+ * The next block, fetched and decoded while you're still looking at the
+ * current one, so a click swaps instantly instead of waiting on the network.
+ */
+let buffered = null; // { channel, block }
+let prefetching = false;
+
+const randomOf = (list) => list[Math.floor(Math.random() * list.length)];
+
+/** A buffered block is only usable if its channel is still in play. */
+function usable(entry, pool) {
+  return Boolean(entry) && pool.some((c) => c.slug === entry.channel.slug);
+}
+
+async function prefetch(pool) {
+  if (prefetching || usable(buffered, pool)) return;
+  prefetching = true;
+  try {
+    const avoid = [...store.recent(), buffered?.block?.id].filter(Boolean);
+    const { channel, block } = await drawFromPool(pool, avoid);
+    if (block) {
+      // Only buffer what actually loaded, and stash the image while the
+      // connection is still up so the buffer survives losing it.
+      const ok = await preload(imageSrc(block));
+      if (ok) {
+        buffered = { channel, block };
+        cacheImage(imageSrc(block));
+      }
+    }
+  } catch {
+    // Offline, most likely. The next draw falls back to the cache.
+  } finally {
+    prefetching = false;
+  }
+}
+
+function takeBuffered(pool) {
+  if (!usable(buffered, pool)) return null;
+  const entry = buffered;
+  buffered = null;
+  return entry;
+}
+
+/**
+ * Draws from the pool, stepping past channels that error so one dead entry —
+ * deleted, renamed, or made private — can't stall an all-channels rotation.
+ * A network failure is not per-channel, so it aborts immediately instead of
+ * retrying every channel in turn.
+ */
+async function drawFromPool(pool, avoid = store.recent()) {
+  const tried = new Set();
+  let lastError;
+
+  for (let attempt = 0; attempt < Math.min(3, pool.length); attempt++) {
+    const candidates = pool.filter((c) => !tried.has(c.slug));
+    if (!candidates.length) break;
+
+    const channel = randomOf(candidates);
+    tried.add(channel.slug);
+    try {
+      const drawn = await randomBlock(arena, channel.slug, avoid);
+      return { channel, ...drawn };
+    } catch (error) {
+      lastError = error;
+      if (error.status === 0) throw error; // offline — no channel will work
+    }
+  }
+  throw lastError;
+}
+
+/* -------------------------------------------------------------------- draw */
+
 async function draw({ showSpinner = false } = {}) {
   if (drawing) return;
   drawing = true;
 
   try {
     const settings = await store.load();
-    const channel = store.activeChannel(settings);
+    const pool = store.drawPool(settings);
 
-    if (!channel) {
+    if (!pool.length) {
       show(
         notice(
           "Nothing to rotate yet",
@@ -112,20 +208,22 @@ async function draw({ showSpinner = false } = {}) {
     }
 
     // A prefetched block is already decoded, so it can go straight up.
-    let block = takeBuffered(channel.slug);
-    let offline = false;
+    const ready = takeBuffered(pool);
+    let entry = ready ? { ...ready, offline: false } : null;
 
-    if (!block) {
+    if (!entry) {
       let timer;
       if (showSpinner) {
         // Only surfaces on a slow network; an instant flash of spinner is
         // worse than no spinner at all.
         timer = setTimeout(() => show(spinner()), 450);
       }
+
       try {
-        const drawn = await randomBlock(arena, channel.slug, store.recent());
+        const { channel, block, total } = await drawFromPool(pool);
         clearTimeout(timer);
-        if (!drawn.total) {
+
+        if (!total) {
           show(
             notice(
               "That channel is empty",
@@ -134,38 +232,35 @@ async function draw({ showSpinner = false } = {}) {
           );
           return;
         }
-        block = drawn.block;
+        if (!block) {
+          show(notice("Couldn't draw a block", "Try again in a moment."));
+          return;
+        }
+        // Decode first so the new block never paints half-loaded.
+        await preload(imageSrc(block));
+        entry = { block, channel, offline: false };
       } catch (error) {
         clearTimeout(timer);
-        block = await drawCached(channel.slug, store.recent());
-        offline = true;
-        if (!block) throw error; // nothing cached either — report the failure
+        const cached = await drawCached(
+          pool.map((c) => c.slug),
+          store.recent(),
+        );
+        if (!cached) throw error; // nothing cached either — report the failure
+        entry = {
+          block: cached.block,
+          channel: pool.find((c) => c.slug === cached.slug) || pool[0],
+          offline: true,
+        };
       }
     }
 
-    if (!block) {
-      show(notice("Couldn't draw a block", "Try again in a moment."));
-      return;
-    }
+    store.remember(entry.block.id);
+    await display(entry);
+    pushHistory(entry);
 
-    store.remember(block.id);
-    // Offline, the image has to come from the cache rather than the network.
-    const imageUrl = offline ? await cachedImage(imageSrc(block)) : "";
-    // Decode first so the new block never paints half-loaded.
-    if (!offline) await preload(imageSrc(block));
-
-    const view = renderBlock(block, {
-      fit: settings.fit,
-      channel,
-      imageUrl,
-      offline,
-    });
-    show(view);
-    afterMount(view);
-
-    if (!offline) {
-      remember(block, channel.slug);
-      prefetch(channel.slug);
+    if (!entry.offline) {
+      remember(entry.block, entry.channel.slug);
+      prefetch(pool);
     }
   } catch (error) {
     show(notice("Something went wrong", error.message || String(error)));
@@ -183,18 +278,29 @@ document.addEventListener("click", (event) => {
   draw();
 });
 
-document.addEventListener("keydown", (event) => {
+document.addEventListener("keydown", async (event) => {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
+  if (settingsPanel?.isOpen()) return; // <dialog> handles Escape itself
 
-  const dialogOpen = settingsPanel?.isOpen();
-  if (dialogOpen) return; // <dialog> handles Escape itself
-
-  if (event.key === " " || event.key === "r" || event.key === "ArrowRight") {
-    event.preventDefault();
-    draw();
-  } else if (event.key === "s") {
-    event.preventDefault();
-    settingsPanel?.open();
+  switch (event.key) {
+    case " ":
+    case "r":
+      event.preventDefault();
+      draw();
+      break;
+    case "ArrowLeft":
+      event.preventDefault();
+      goBack();
+      break;
+    case "ArrowRight":
+      // Retrace first if you've gone back; otherwise this is just "another".
+      event.preventDefault();
+      if (!(await goForward())) draw();
+      break;
+    case "s":
+      event.preventDefault();
+      settingsPanel?.open();
+      break;
   }
 });
 
@@ -206,8 +312,10 @@ function flashHint() {
 
 settingsPanel = initSettings({
   onChange: () => {
-    // The channel or token may have changed, so cached block counts are suspect.
+    // The channel or token may have changed, so cached counts and any
+    // prefetched block are suspect.
     forgetCount();
+    buffered = null;
     draw({ showSpinner: true });
   },
 });

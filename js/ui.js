@@ -32,6 +32,34 @@ function say(node, message, kind) {
   node.className = kind ? `status status--${kind}` : "status";
 }
 
+/** The "everything" row that sits above the individual channels. */
+function allChannelsRow(checked, count, onPick) {
+  const li = document.createElement("li");
+  li.className = "channel channel--all";
+
+  const label = document.createElement("label");
+  label.className = "channel__label";
+
+  const radio = document.createElement("input");
+  radio.type = "radio";
+  radio.name = "active-channel";
+  radio.value = store.ALL_CHANNELS;
+  radio.checked = checked;
+  radio.addEventListener("change", onPick);
+
+  const title = document.createElement("span");
+  title.className = "channel__title";
+  title.textContent = "All channels";
+
+  const note = document.createElement("span");
+  note.className = "channel__slug";
+  note.textContent = `${count} channels`;
+
+  label.append(radio, title, note);
+  li.appendChild(label);
+  return li;
+}
+
 export function initSettings({ onChange }) {
   const dialog = $("settings");
   const list = $("channel-list");
@@ -52,7 +80,22 @@ export function initSettings({ onChange }) {
     list.replaceChildren();
     empty.hidden = settings.channels.length > 0;
 
+    // With one channel left the "all" row is hidden, so fall back to selecting
+    // that channel — otherwise nothing appears checked.
+    const everything =
+      settings.active === store.ALL_CHANNELS && settings.channels.length > 1;
     const active = store.activeChannel(settings);
+
+    // Rotating across everything only means something with more than one.
+    if (settings.channels.length > 1) {
+      list.appendChild(
+        allChannelsRow(everything, settings.channels.length, async () => {
+          await store.update({ active: store.ALL_CHANNELS });
+          onChange();
+        }),
+      );
+    }
+
     for (const channel of settings.channels) {
       const li = document.createElement("li");
       li.className = "channel";
@@ -64,7 +107,7 @@ export function initSettings({ onChange }) {
       radio.type = "radio";
       radio.name = "active-channel";
       radio.value = channel.slug;
-      radio.checked = active?.slug === channel.slug;
+      radio.checked = !everything && active?.slug === channel.slug;
       radio.addEventListener("change", async () => {
         await store.update({ active: channel.slug });
         onChange();
