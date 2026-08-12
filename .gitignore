@@ -1,0 +1,11 @@
+# Never commit credentials. The are.na token lives in browser storage,
+# entered through the app's settings panel — it should never reach a file here.
+*.token
+.env
+.env.*
+secrets.json
+
+.DS_Store
+node_modules/
+dist/
+*.zip
