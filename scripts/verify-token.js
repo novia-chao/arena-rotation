@@ -8,19 +8,38 @@
  * environment and never printed, written to a file, or sent anywhere but
  * api.are.na.
  *
- *   ARENA_TOKEN='paste-here' node scripts/verify-token.js
+ *   node scripts/verify-token.js
  *
- * Prefix the command with a space in most shells and it stays out of history.
+ * With no ARENA_TOKEN in the environment it prompts, reading the token with the
+ * echo off. Typed that way the token never reaches argv, the shell history, or
+ * the process table — all of which a leading `ARENA_TOKEN=...` would expose.
  */
 
+import { createInterface } from "node:readline";
 import { Arena, randomBlock } from "../js/arena.js";
 
-const token = process.env.ARENA_TOKEN;
+/** Reads a line without echoing it back to the terminal. */
+function askHidden(question) {
+  return new Promise((resolve) => {
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      terminal: process.stdin.isTTY === true,
+    });
+    rl.question(question, (value) => {
+      rl.close();
+      if (process.stdin.isTTY) process.stdout.write("\n");
+      resolve(value.trim());
+    });
+    // rl.question has already printed the prompt; silence what follows so the
+    // token itself never appears on screen.
+    if (process.stdin.isTTY) rl._writeToOutput = () => {};
+  });
+}
+
+const token = process.env.ARENA_TOKEN || (await askHidden("are.na token: "));
 if (!token) {
-  console.error(
-    "ARENA_TOKEN is not set.\n\n" +
-      "  ARENA_TOKEN='your-token' node scripts/verify-token.js\n",
-  );
+  console.error("No token given.\n");
   process.exit(2);
 }
 

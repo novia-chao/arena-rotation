@@ -49,12 +49,16 @@ Private channels and **Import my channels** can't be exercised without an accoun
 This checks them against the same client the page uses:
 
 ```bash
-ARENA_TOKEN='your-token' node scripts/verify-token.js
+node scripts/verify-token.js
 ```
+
+It prompts for the token with the echo off, so the token never reaches argv, your
+shell history, or the process table — all of which a leading `ARENA_TOKEN=...` would
+expose. (That environment variable still works if you'd rather script it.)
 
 It reports who you're signed in as, how many channels import, whether the import is
 hitting its page cap, and whether a private channel can be read and drawn from. The
-token is read from the environment — it is never printed or written to a file.
+token is never printed or written to a file.
 
 ## Controls
 
