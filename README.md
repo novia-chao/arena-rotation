@@ -70,11 +70,16 @@ token is never printed or written to a file.
 **Pick a presentation.** Under Display, **Card** floats the block on a blurred wash of
 its own image; **Full bleed** fills the screen with it. Card is the default.
 
+In card mode the card opens the block's source — a link or embed goes to what it
+references, an attachment to its file, and anything else to its are.na page. Hovering
+names the destination. Clicking anywhere around the card still draws another block.
+
 ## Controls
 
 | Action | Key |
 |---|---|
-| Next block | click / tap, <kbd>Space</kbd>, <kbd>R</kbd> |
+| Open the block's source | click the card |
+| Next block | click around the card, <kbd>Space</kbd>, <kbd>R</kbd> |
 | Back | <kbd>←</kbd> |
 | Forward, then next | <kbd>→</kbd> |
 | Settings | <kbd>S</kbd> |

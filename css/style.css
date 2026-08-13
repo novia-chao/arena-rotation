@@ -170,6 +170,48 @@ a {
   padding-bottom: 0;
 }
 
+/* The card opens its source, so it lifts slightly under the pointer. */
+.card-frame--linked {
+  transition:
+    transform 0.35s var(--ease),
+    border-color 0.35s,
+    box-shadow 0.35s;
+}
+
+.card-frame--linked:hover {
+  transform: translateY(-3px);
+  border-color: rgba(244, 241, 234, 0.3);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.36),
+    0 32px 74px rgba(0, 0, 0, 0.58);
+}
+
+/* Names the destination on hover, so the card isn't a mystery click. */
+.card-frame__dest {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(8, 8, 9, 0.82);
+  backdrop-filter: blur(6px);
+  color: var(--ink);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-3px);
+  transition:
+    opacity 0.25s,
+    transform 0.25s var(--ease);
+}
+
+.card-frame--linked:hover .card-frame__dest {
+  opacity: 1;
+  transform: none;
+}
+
 /*
  * In a card the metadata gets its own strip under the content rather than
  * floating over it — a caption belongs beside the object, not on top of it.

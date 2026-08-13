@@ -65,6 +65,39 @@ export function imageSrc(block) {
   return block?.image?.src || "";
 }
 
+/** The block's own page on are.na. */
+function permalink(block) {
+  return block.type === "Channel"
+    ? `${ARENA_WEB}/${block.owner?.slug || ""}/${block.slug}`
+    : `${ARENA_WEB}/block/${block.id}`;
+}
+
+/**
+ * Where a block points. A link or embed goes to what it references and an
+ * attachment to its file; everything else has no outside source, so it goes to
+ * its are.na page — which is where you'd go to see its context anyway.
+ */
+export function sourceUrl(block) {
+  const direct = block.source?.url || block.attachment?.url;
+  if (!direct) return permalink(block);
+  try {
+    const url = new URL(direct);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.href
+      : permalink(block);
+  } catch {
+    return permalink(block);
+  }
+}
+
+function hostOf(href) {
+  try {
+    return new URL(href).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
 /**
  * @param imageUrl overrides the network src — an object URL from the offline
  *                 image cache, when we're drawing without a connection.
@@ -246,11 +279,7 @@ function chrome(block, ctx) {
   const right = el("div", "meta__group");
   // Say so rather than passing off a cached block as a fresh draw.
   if (ctx.offline) right.appendChild(el("span", "meta__badge", "offline"));
-  const permalink =
-    block.type === "Channel"
-      ? `${ARENA_WEB}/${block.owner?.slug || ""}/${block.slug}`
-      : `${ARENA_WEB}/block/${block.id}`;
-  right.appendChild(anchor(permalink, "meta__link", "are.na ↗"));
+  right.appendChild(anchor(permalink(block), "meta__link", "are.na ↗"));
   bar.appendChild(right);
 
   return bar;
@@ -300,8 +329,39 @@ export function renderBlock(block, ctx) {
   const frame = el("div", `card-frame card-frame--${media ? "media" : "panel"}`);
 
   frame.append(content, meta);
+  linkCard(frame, block);
   view.appendChild(frame);
   return view;
+}
+
+/**
+ * Makes the whole card open the block's source.
+ *
+ * A wrapping <a> would be the obvious approach, but cards contain their own
+ * links — "Open ↗", "are.na ↗" — and nesting anchors is invalid. So the frame
+ * takes a click handler and the inner links keep working untouched. The
+ * anchors are also what keyboard users tab to, since a div is not focusable;
+ * this handler is a pointer convenience on top of them, not the only way in.
+ */
+function linkCard(frame, block) {
+  const href = sourceUrl(block);
+  if (!href) return;
+
+  frame.classList.add("card-frame--linked");
+
+  const host = hostOf(href);
+  if (host) {
+    const pill = el("span", "card-frame__dest", `${host} ↗`);
+    frame.appendChild(pill);
+  }
+
+  frame.addEventListener("click", (event) => {
+    // A real link or button inside the card wins; let it bubble so the
+    // document handler sees the anchor and skips the reshuffle too.
+    if (event.target.closest("a, button")) return;
+    event.stopPropagation(); // clicking the card must not also draw another
+    window.open(href, "_blank", "noopener,noreferrer");
+  });
 }
 
 /**

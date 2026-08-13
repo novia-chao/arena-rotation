@@ -306,7 +306,14 @@ document.addEventListener("keydown", async (event) => {
 });
 
 /** The hint is for the first few seconds only; after that it's noise. */
-function flashHint() {
+async function flashHint() {
+  const { mode } = await store.load();
+  // In card mode the card itself opens the source, so it is no longer the
+  // thing you click to move on.
+  hint.textContent =
+    mode === "card"
+      ? "click around the card for another · ← to go back"
+      : "click for another · ← to go back";
   hint.classList.add("hint--show");
   setTimeout(() => hint.classList.remove("hint--show"), 3200);
 }
