@@ -1,7 +1,7 @@
 # Arena Rotation
 
-A random block from one of your [are.na](https://www.are.na) channels, as a card.
-Click anywhere for another.
+A random block from one of your [are.na](https://www.are.na) channels, as a card you
+can click through to its source. Click around it for another.
 
 Runs two ways from the same files:
 
@@ -50,6 +50,13 @@ private channels and enables **Import my channels**, which pulls in everything y
 > access to your account, so don't paste it anywhere else, and never commit it —
 > nothing in this repo should ever contain it.
 
+**Pick a presentation.** Under Display, **Card** floats the block on a blurred wash of
+its own image; **Full bleed** fills the screen with it. Card is the default.
+
+In card mode the card opens the block's source — a link or embed goes to what it
+references, an attachment to its file, and anything else to its are.na page. Hovering
+names the destination. Clicking anywhere around the card still draws another block.
+
 ## Checking the authenticated paths
 
 Private channels and **Import my channels** can't be exercised without an account.
@@ -66,13 +73,6 @@ expose. (That environment variable still works if you'd rather script it.)
 It reports who you're signed in as, how many channels import, whether the import is
 hitting its page cap, and whether a private channel can be read and drawn from. The
 token is never printed or written to a file.
-
-**Pick a presentation.** Under Display, **Card** floats the block on a blurred wash of
-its own image; **Full bleed** fills the screen with it. Card is the default.
-
-In card mode the card opens the block's source — a link or embed goes to what it
-references, an attachment to its file, and anything else to its are.na page. Hovering
-names the destination. Clicking anywhere around the card still draws another block.
 
 ## Controls
 
@@ -114,8 +114,8 @@ Each block class gets its own renderer:
 
 | Class | Rendered as |
 |---|---|
-| `Image` | full-bleed photo, fill or fit |
-| `Text` | large serif type |
+| `Image` | the photo, sized to its own proportions |
+| `Text` | serif type, sized to its length |
 | `Link` / `Embed` | dimmed backdrop with title, source and a link out |
 | `Attachment` | file card with type, size and a link out |
 | `Channel` | channel card with block count and owner |
