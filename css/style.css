@@ -960,14 +960,21 @@ body.dock-shown .hint {
 
 /* ---------------------------------------------------------------- progress */
 
+/*
+ * Vertical hairline ticks rather than a segmented bar. They're 1px wide and
+ * fixed, so the row grows as you browse instead of subdividing a fixed width —
+ * the ruler gets longer rather than finer.
+ */
 .progress {
   position: fixed;
   left: 50%;
   bottom: 1.15rem;
   z-index: 4;
   display: flex;
-  gap: 3px;
-  width: min(22rem, 48vw);
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 14px;
   transform: translateX(-50%);
   pointer-events: none;
   transition: transform 0.42s var(--ease-out);
@@ -979,22 +986,22 @@ body.dock-shown .progress {
 }
 
 .progress i {
-  flex: 1;
-  height: 2px;
-  border-radius: 1px;
-  background: rgba(244, 241, 234, 0.14);
+  width: 1px;
+  height: 8px;
+  background: rgba(244, 241, 234, 0.16);
   transition:
-    background 0.3s,
-    transform 0.3s var(--ease-out);
+    height 0.3s var(--ease-out),
+    background 0.3s;
 }
 
+/* Behind the cursor — already seen, still reachable with ←. */
 .progress i.is-seen {
-  background: rgba(244, 241, 234, 0.34);
+  background: rgba(244, 241, 234, 0.38);
 }
 
 .progress i.is-current {
+  height: 13px;
   background: var(--ink);
-  transform: scaleY(1.8);
 }
 
 .icon-button {

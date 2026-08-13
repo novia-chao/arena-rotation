@@ -90,9 +90,12 @@ Tile art comes from blocks you've already seen — the offline pool already hold
 so the dock costs no extra requests — falling back to initials for channels you haven't
 drawn from yet.
 
-Above the dock, one dash per block in this tab's history shows how far back <kbd>←</kbd>
-can take you and how much <kbd>→</kbd> has left to replay. It tracks history rather than
-position in a channel, because a random draw has no position to be at.
+Above the dock, a row of 1px vertical ticks — one per block in this tab's history, with
+the current one taller and brighter. The ticks are fixed width rather than dividing a
+fixed bar, so the ruler grows as you browse instead of getting finer. It tracks history
+rather than position in a channel, because a random draw has no position to be at:
+what the ticks show is how far back <kbd>←</kbd> reaches and how much <kbd>→</kbd> has
+left to replay.
 
 ## Controls
 
