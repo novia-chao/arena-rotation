@@ -85,6 +85,12 @@ token is never printed or written to a file.
 | Settings | <kbd>S</kbd> |
 | Close settings | <kbd>Esc</kbd> |
 
+Transitions carry direction: a new card rises in from below while the old one lifts
+away and blurs out, and going back runs that in reverse so it reads as a rewind. In a
+card the ambient wash animates on its own longer curve than the card, so the colour
+settles after the card has landed. Full bleed uses depth instead of travel — sliding a
+picture that already reaches every edge would just expose the background.
+
 <kbd>←</kbd> walks back through the last 30 blocks you've seen in this tab, and
 <kbd>→</kbd> retraces. Drawing a new block from partway back discards what was ahead,
 the same way browser history does. History is per-tab and not persisted.

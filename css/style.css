@@ -8,6 +8,7 @@
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --sans: ui-sans-serif, -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {
@@ -51,16 +52,186 @@ a {
   inset: 0;
 }
 
-/* The animated unit: one per draw, either filling the screen or holding a card. */
+/*
+ * One view per draw, either filling the screen or holding a card.
+ *
+ * A card view doesn't animate as a whole — its ambient wash and its card move
+ * on separate timings, so the light in the room changes slowly while the card
+ * itself travels crisply. That layering is most of what makes the transition
+ * feel fluid rather than like a crossfade.
+ */
 .view {
   position: absolute;
   inset: 0;
-  animation: rise 0.62s var(--ease) both;
 }
 
 .view--leaving {
-  animation: fall 0.28s ease-in both;
   pointer-events: none;
+}
+
+/* ------------------------------------------------------- card mode motion */
+
+/* Travelling forward, a card rises in from below and the old one lifts away. */
+@keyframes card-in-next {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 38px, 0) scale(0.962);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes card-out-next {
+  from {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -30px, 0) scale(1.02);
+    filter: blur(8px);
+  }
+}
+
+/* Going back runs the same motion in reverse, so it reads as a rewind. */
+@keyframes card-in-prev {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -38px, 0) scale(0.962);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes card-out-prev {
+  from {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 30px, 0) scale(1.02);
+    filter: blur(8px);
+  }
+}
+
+/* The first card of the session has nowhere to have come from. */
+@keyframes card-in-first {
+  from {
+    opacity: 0;
+    transform: scale(0.955);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ambient-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ambient-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.view--in-next .card-frame {
+  animation: card-in-next 0.78s var(--ease-out) backwards;
+}
+
+.view--in-prev .card-frame {
+  animation: card-in-prev 0.78s var(--ease-out) backwards;
+}
+
+.view--in-first .card-frame {
+  animation: card-in-first 0.85s var(--ease-out) backwards;
+}
+
+/* The wash outlasts the card, so the colour settles after the card lands. */
+.view--card .ambient {
+  animation: ambient-in 1.15s ease backwards;
+}
+
+.view--leaving.view--out-next .card-frame {
+  animation: card-out-next 0.44s ease-in forwards;
+}
+
+.view--leaving.view--out-prev .card-frame {
+  animation: card-out-prev 0.44s ease-in forwards;
+}
+
+.view--leaving .ambient {
+  animation: ambient-out 0.6s ease forwards;
+}
+
+/* ------------------------------------------------------ full-bleed motion */
+
+/*
+ * No translation here: the image already reaches every edge, so sliding it
+ * would expose the background. Depth carries the direction instead — forward
+ * arrives from further away, back from nearer.
+ */
+@keyframes bleed-in-next {
+  from {
+    opacity: 0;
+    transform: scale(1.03);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+@keyframes bleed-in-prev {
+  from {
+    opacity: 0;
+    transform: scale(0.975);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+@keyframes bleed-out {
+  to {
+    opacity: 0;
+    transform: scale(0.992);
+    filter: blur(5px);
+  }
+}
+
+.view--bleed.view--in-next,
+.view--bleed.view--in-first {
+  animation: bleed-in-next 0.72s var(--ease-out) backwards;
+}
+
+.view--bleed.view--in-prev {
+  animation: bleed-in-prev 0.72s var(--ease-out) backwards;
+}
+
+.view--bleed.view--leaving {
+  animation: bleed-out 0.4s ease-in forwards;
 }
 
 .view--card {
@@ -170,7 +341,13 @@ a {
   padding-bottom: 0;
 }
 
-/* The card opens its source, so it lifts slightly under the pointer. */
+/*
+ * The card opens its source, so it lifts slightly under the pointer.
+ *
+ * The entry animations must use fill-mode backwards, not both: an animated
+ * value outranks a normal declaration, so a retained `transform: none` would
+ * beat this hover and the lift would silently stop working once a card landed.
+ */
 .card-frame--linked {
   transition:
     transform 0.35s var(--ease),
@@ -259,24 +436,6 @@ a {
   font-size: clamp(0.95rem, 1.5vw, 1.15rem);
 }
 
-
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: scale(1.022);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes fall {
-  to {
-    opacity: 0;
-    transform: scale(0.994);
-  }
-}
 
 /* --------------------------------------------------------------- backdrops */
 

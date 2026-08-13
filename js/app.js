@@ -20,21 +20,32 @@ let settingsPanel;
 
 /* ------------------------------------------------------------------ stage */
 
-function show(node) {
+/**
+ * Must outlast the longest exit animation in style.css. Removal is on a timer
+ * rather than animationend because a leaving view runs several animations at
+ * once (card and ambient, on different durations) and the first to finish
+ * would otherwise cut the others short.
+ */
+const EXIT_MS = 640;
+
+/**
+ * @param direction "next", "prev" or "first" — the transition reads as motion
+ *        in the direction you travelled, so going back visibly rewinds.
+ */
+function show(node, direction = "first") {
+  const exit = direction === "prev" ? "prev" : "next";
+
   // Every block still on stage is on its way out — not just the first child.
   // Navigating faster than the transition leaves several here at once, and
   // reading only firstElementChild would re-mark the block that is already
   // leaving while the live one stayed behind forever.
   for (const outgoing of [...stage.children]) {
     if (outgoing.classList.contains("view--leaving")) continue;
-    outgoing.classList.add("view--leaving");
-    outgoing.addEventListener("animationend", () => outgoing.remove(), {
-      once: true,
-    });
-    // Guarantees removal even if the animation never fires (reduced motion,
-    // background tab), so stages can't pile up.
-    setTimeout(() => outgoing.remove(), 400);
+    outgoing.classList.add("view--leaving", `view--out-${exit}`);
+    setTimeout(() => outgoing.remove(), EXIT_MS);
   }
+
+  node.classList.add(`view--in-${direction}`);
   stage.appendChild(node);
 }
 
@@ -68,7 +79,7 @@ let renderSeq = 0;
  * than stored on the entry, because object URLs are revoked as they age out
  * and a history entry can outlive its URL.
  */
-async function display(entry) {
+async function display(entry, direction = "next") {
   // Holding ← fires navigations faster than they can paint. Each render claims
   // a sequence number and stale ones bail, so the last key pressed is the one
   // left on screen regardless of what order the awaits resolve in.
@@ -84,7 +95,7 @@ async function display(entry) {
     imageUrl,
     offline: entry.offline,
   });
-  show(view);
+  show(view, direction);
   afterMount(view);
 }
 
@@ -104,14 +115,14 @@ function pushHistory(entry) {
 async function goBack() {
   if (cursor <= 0) return false;
   cursor--;
-  await display(history[cursor]);
+  await display(history[cursor], "prev");
   return true;
 }
 
 async function goForward() {
   if (cursor >= history.length - 1) return false;
   cursor++;
-  await display(history[cursor]);
+  await display(history[cursor], "next");
   return true;
 }
 
@@ -189,7 +200,7 @@ async function drawFromPool(pool, avoid = store.recent()) {
 
 /* -------------------------------------------------------------------- draw */
 
-async function draw({ showSpinner = false } = {}) {
+async function draw({ showSpinner = false, direction = "next" } = {}) {
   if (drawing) return;
   drawing = true;
 
@@ -256,7 +267,7 @@ async function draw({ showSpinner = false } = {}) {
     }
 
     store.remember(entry.block.id);
-    await display(entry);
+    await display(entry, direction);
     pushHistory(entry);
 
     if (!entry.offline) {
@@ -328,5 +339,5 @@ settingsPanel = initSettings({
   },
 });
 
-draw({ showSpinner: true });
+draw({ showSpinner: true, direction: "first" });
 flashHint();
