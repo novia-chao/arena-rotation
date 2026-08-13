@@ -146,6 +146,9 @@ export function initSettings({ onChange }) {
     for (const radio of document.querySelectorAll('input[name="fit"]')) {
       radio.checked = radio.value === settings.fit;
     }
+    for (const radio of document.querySelectorAll('input[name="mode"]')) {
+      radio.checked = radio.value === settings.mode;
+    }
   }
 
   addForm.addEventListener("submit", async (event) => {
@@ -232,12 +235,17 @@ export function initSettings({ onChange }) {
     }
   });
 
-  for (const radio of document.querySelectorAll('input[name="fit"]')) {
-    radio.addEventListener("change", async () => {
-      if (!radio.checked) return;
-      await store.update({ fit: radio.value });
-      onChange();
-    });
+  for (const [group, key] of [
+    ["fit", "fit"],
+    ["mode", "mode"],
+  ]) {
+    for (const radio of document.querySelectorAll(`input[name="${group}"]`)) {
+      radio.addEventListener("change", async () => {
+        if (!radio.checked) return;
+        await store.update({ [key]: radio.value });
+        onChange();
+      });
+    }
   }
 
   // Transient messages shouldn't survive until the next time the sheet opens.

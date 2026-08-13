@@ -1,6 +1,6 @@
 # Arena Rotation
 
-A random block from one of your [are.na](https://www.are.na) channels, full bleed.
+A random block from one of your [are.na](https://www.are.na) channels, as a card.
 Click anywhere for another.
 
 Runs two ways from the same files:
@@ -66,6 +66,9 @@ expose. (That environment variable still works if you'd rather script it.)
 It reports who you're signed in as, how many channels import, whether the import is
 hitting its page cap, and whether a private channel can be read and drawn from. The
 token is never printed or written to a file.
+
+**Pick a presentation.** Under Display, **Card** floats the block on a blurred wash of
+its own image; **Full bleed** fills the screen with it. Card is the default.
 
 ## Controls
 

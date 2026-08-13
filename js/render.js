@@ -261,11 +261,47 @@ function chrome(block, ctx) {
  * @param {{fit:string, channel:object, imageUrl?:string, offline?:boolean}} ctx
  * @returns {HTMLElement} a full-bleed stage for the block
  */
+/**
+ * Blurred, dimmed copy of the block's image filling the viewport behind a
+ * card, so the card sits in light borrowed from its own contents rather than
+ * on flat grey.
+ */
+function ambient(block, imageUrl) {
+  const src = imageUrl || imageSrc(block);
+  if (!src) return null;
+  const wrap = el("div", "ambient");
+  const img = el("img");
+  img.src = src;
+  img.alt = "";
+  img.decoding = "async";
+  wrap.appendChild(img);
+  return wrap;
+}
+
 export function renderBlock(block, ctx) {
   const build = RENDERERS[block.type] || renderLinkish;
-  const stage = build(block, ctx);
-  stage.appendChild(chrome(block, ctx));
-  return stage;
+  const content = build(block, ctx);
+  const meta = chrome(block, ctx);
+
+  if (ctx.mode !== "card") {
+    const view = el("div", "view view--bleed");
+    view.append(content, meta);
+    return view;
+  }
+
+  const view = el("div", "view view--card");
+  const glow = ambient(block, ctx.imageUrl);
+  if (glow) view.appendChild(glow);
+
+  // An image card is sized by the picture itself — the frame shrink-wraps it,
+  // so the card arrives at the image's proportions without being told them.
+  // Everything else is a panel that sizes to its text.
+  const media = Boolean(imageSrc(block)) && block.type === "Image";
+  const frame = el("div", `card-frame card-frame--${media ? "media" : "panel"}`);
+
+  frame.append(content, meta);
+  view.appendChild(frame);
+  return view;
 }
 
 /**

@@ -51,17 +51,172 @@ a {
   inset: 0;
 }
 
+/* The animated unit: one per draw, either filling the screen or holding a card. */
+.view {
+  position: absolute;
+  inset: 0;
+  animation: rise 0.62s var(--ease) both;
+}
+
+.view--leaving {
+  animation: fall 0.28s ease-in both;
+  pointer-events: none;
+}
+
+.view--card {
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 3rem);
+  background: var(--bg);
+}
+
 .block {
   position: absolute;
   inset: 0;
   display: grid;
-  animation: rise 0.62s var(--ease) both;
 }
 
-.block--leaving {
-  animation: fall 0.28s ease-in both;
-  pointer-events: none;
+/* ------------------------------------------------------------------- card */
+
+/* Light borrowed from the block's own image, so the card isn't on flat grey. */
+.ambient {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
+
+.ambient img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Scaled up because a heavy blur samples past the edges otherwise. */
+  transform: scale(1.25);
+  filter: blur(64px) saturate(1.7) brightness(0.34);
+}
+
+.ambient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 11, 12, 0.55);
+}
+
+.card-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.34),
+    0 24px 60px rgba(0, 0, 0, 0.52);
+}
+
+/*
+ * The image sizes itself and the frame shrink-wraps it, so the card lands on
+ * the picture's own proportions. Setting aspect-ratio on the frame instead
+ * would collapse it to min-content, since the width has nothing to resolve
+ * against inside a centred grid cell.
+ */
+.card-frame--media .block,
+.card-frame--media .backdrop {
+  position: relative;
+  inset: auto;
+  display: block;
+  line-height: 0;
+}
+
+.card-frame--media .backdrop img {
+  width: auto;
+  height: auto;
+  max-width: min(58rem, 86vw);
+  max-height: 74vh;
+  object-fit: contain;
+}
+
+/*
+ * Sized to its text rather than to a fixed width, so a six-word quote gets a
+ * snug card instead of floating in a wide empty one. The prose max-widths do
+ * the actual constraining.
+ */
+.card-frame--panel {
+  width: fit-content;
+  min-width: min(20rem, 100%);
+  max-width: min(40rem, 100%);
+  max-height: 100%;
+}
+
+/* Inside a panel the content sizes to its text rather than filling a screen. */
+.card-frame--panel .block {
+  position: relative;
+  inset: auto;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.card-frame--panel .block::-webkit-scrollbar {
+  display: none;
+}
+
+.card-frame--panel .block--text,
+.card-frame--panel .block--link,
+.card-frame--panel .block--channel {
+  padding: clamp(1.75rem, 4vw, 2.75rem);
+}
+
+.card-frame--panel .card {
+  padding-bottom: 0;
+}
+
+/*
+ * In a card the metadata gets its own strip under the content rather than
+ * floating over it — a caption belongs beside the object, not on top of it.
+ */
+.view--card .meta {
+  position: static;
+  flex-shrink: 0;
+  padding: 0.85rem 1.15rem;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  opacity: 1;
+}
+
+.view--card .block--image .caption {
+  bottom: 0.9rem;
+}
+
+/* Type runs smaller in a card than across a whole screen. */
+.view--card .prose--xl {
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+}
+
+.view--card .prose--lg {
+  font-size: clamp(1.25rem, 2.4vw, 1.7rem);
+}
+
+.view--card .prose--md {
+  font-size: clamp(1.05rem, 1.7vw, 1.28rem);
+}
+
+.view--card .prose--sm {
+  font-size: clamp(0.94rem, 1.3vw, 1.02rem);
+}
+
+.view--card .prose {
+  max-height: none;
+}
+
+.view--card .card__title {
+  font-size: clamp(1.5rem, 3.2vw, 2.1rem);
+}
+
+
+.view--card .caption__title {
+  font-size: clamp(0.95rem, 1.5vw, 1.15rem);
+}
+
 
 @keyframes rise {
   from {

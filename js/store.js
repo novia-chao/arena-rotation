@@ -11,6 +11,7 @@ const DEFAULTS = {
   channels: [], // [{ slug, title, owner }]
   active: "",
   fit: "cover", // "cover" | "contain"
+  mode: "card", // "card" | "bleed"
 };
 
 const KEY = "arena-rotation:settings";

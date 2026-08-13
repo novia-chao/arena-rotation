@@ -26,8 +26,8 @@ function show(node) {
   // reading only firstElementChild would re-mark the block that is already
   // leaving while the live one stayed behind forever.
   for (const outgoing of [...stage.children]) {
-    if (outgoing.classList.contains("block--leaving")) continue;
-    outgoing.classList.add("block--leaving");
+    if (outgoing.classList.contains("view--leaving")) continue;
+    outgoing.classList.add("view--leaving");
     outgoing.addEventListener("animationend", () => outgoing.remove(), {
       once: true,
     });
@@ -40,7 +40,7 @@ function show(node) {
 
 function notice(title, body) {
   const wrap = document.createElement("div");
-  wrap.className = "block";
+  wrap.className = "view view--bleed";
   const box = document.createElement("div");
   box.className = "notice";
   const h = document.createElement("h1");
@@ -54,7 +54,7 @@ function notice(title, body) {
 
 function spinner() {
   const wrap = document.createElement("div");
-  wrap.className = "block";
+  wrap.className = "view view--bleed";
   const dot = document.createElement("div");
   dot.className = "spinner";
   wrap.appendChild(dot);
@@ -73,12 +73,13 @@ async function display(entry) {
   // a sequence number and stale ones bail, so the last key pressed is the one
   // left on screen regardless of what order the awaits resolve in.
   const seq = ++renderSeq;
-  const { fit } = await store.load();
+  const { fit, mode } = await store.load();
   const imageUrl = entry.offline ? await cachedImage(imageSrc(entry.block)) : "";
   if (seq !== renderSeq) return;
 
   const view = renderBlock(entry.block, {
     fit,
+    mode,
     channel: entry.channel,
     imageUrl,
     offline: entry.offline,
