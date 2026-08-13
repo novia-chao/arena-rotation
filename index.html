@@ -12,6 +12,13 @@
 
     <p id="hint" class="hint">click for another · ← to go back</p>
 
+    <!-- One dash per block seen in this tab; the bright one is on screen. -->
+    <div id="progress" class="progress" aria-hidden="true" hidden></div>
+
+    <nav id="dock" class="dock" aria-label="Channels" hidden>
+      <ul id="dock-items" class="dock__items"></ul>
+    </nav>
+
     <button id="open-settings" class="icon-button" aria-label="Settings" title="Settings (S)">
       <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18">
         <path

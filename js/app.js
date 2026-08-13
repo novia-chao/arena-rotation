@@ -9,6 +9,8 @@ import { Arena, forgetCount, randomBlock } from "./arena.js";
 import { cacheImage, cachedImage, drawCached, remember } from "./offline.js";
 import { afterMount, preload, renderBlock, imageSrc } from "./render.js";
 import * as store from "./store.js";
+import { initDock } from "./dock.js";
+import { initProgress } from "./progress.js";
 import { initSettings } from "./ui.js";
 
 const stage = document.getElementById("stage");
@@ -17,36 +19,77 @@ const arena = new Arena(store.token);
 
 let drawing = false;
 let settingsPanel;
+let dock;
+let progress;
+
+/** False while the card is genied away and only the dock is on screen. */
+let cardOpen = true;
 
 /* ------------------------------------------------------------------ stage */
 
 /**
- * Must outlast the longest exit animation in style.css. Removal is on a timer
- * rather than animationend because a leaving view runs several animations at
- * once (card and ambient, on different durations) and the first to finish
+ * How long a leaving view stays before it is removed. Must outlast the longest
+ * exit animation in style.css — currently genie-out at 0.68s — or a card gets
+ * cut off mid-flight.
+ *
+ * Removal is on a timer rather than animationend because a leaving view runs
+ * several animations at once, on different durations, and the first to finish
  * would otherwise cut the others short.
  */
-const EXIT_MS = 640;
+const EXIT_MS = 700;
 
 /**
- * @param direction "next", "prev" or "first" — the transition reads as motion
- *        in the direction you travelled, so going back visibly rewinds.
+ * Points a view's genie animation at its channel's dock tile. The tile's
+ * position can only be measured at runtime, so it arrives as custom properties
+ * the keyframes read.
+ *
+ * @returns false when there's no tile to aim at, so the caller can fall back
+ *          to an ordinary transition rather than flying into a corner.
  */
-function show(node, direction = "first") {
-  const exit = direction === "prev" ? "prev" : "next";
+function aimGenie(view, slug) {
+  const rect = dock?.tileRect(slug);
+  if (!rect) return false;
 
+  const target = view.querySelector(".card-frame") || view;
+  const box = target.getBoundingClientRect();
+  target.style.setProperty(
+    "--gx",
+    `${rect.left + rect.width / 2 - (box.left + box.width / 2)}px`,
+  );
+  // Measured from the card's bottom edge, matching transform-origin.
+  target.style.setProperty("--gy", `${rect.top + rect.height / 2 - box.bottom}px`);
+  return true;
+}
+
+/** Sends every view on stage away, with no replacement. */
+function clearStage(exit) {
+  for (const outgoing of [...stage.children]) {
+    if (outgoing.classList.contains("view--leaving")) continue;
+    // Aim before the class lands, so the animation starts with the offset set.
+    const aimed = exit !== "genie" || aimGenie(outgoing, outgoing.dataset.slug);
+    outgoing.classList.add("view--leaving", `view--out-${aimed ? exit : "next"}`);
+    setTimeout(() => outgoing.remove(), EXIT_MS);
+  }
+}
+
+/**
+ * @param direction "next", "prev", "first" or "genie" — the transition reads
+ *        as motion in the direction you travelled, so going back visibly
+ *        rewinds and opening a channel pours out of its dock tile.
+ */
+function show(node, direction = "first", slug = "") {
   // Every block still on stage is on its way out — not just the first child.
   // Navigating faster than the transition leaves several here at once, and
   // reading only firstElementChild would re-mark the block that is already
   // leaving while the live one stayed behind forever.
-  for (const outgoing of [...stage.children]) {
-    if (outgoing.classList.contains("view--leaving")) continue;
-    outgoing.classList.add("view--leaving", `view--out-${exit}`);
-    setTimeout(() => outgoing.remove(), EXIT_MS);
-  }
+  clearStage(direction === "genie" ? "genie" : direction === "prev" ? "prev" : "next");
 
-  node.classList.add(`view--in-${direction}`);
+  node.dataset.slug = slug;
   stage.appendChild(node);
+  // Appending first so the frame can be measured; nothing has painted yet, so
+  // adding the class in the same task still catches the first frame.
+  if (direction === "genie" && !aimGenie(node, slug)) direction = "next";
+  node.classList.add(`view--in-${direction}`);
 }
 
 function notice(title, body) {
@@ -95,7 +138,7 @@ async function display(entry, direction = "next") {
     imageUrl,
     offline: entry.offline,
   });
-  show(view, direction);
+  show(view, direction, entry.channel?.slug || "");
   afterMount(view);
 }
 
@@ -110,11 +153,13 @@ function pushHistory(entry) {
   history.push(entry);
   if (history.length > HISTORY_MAX) history.shift();
   cursor = history.length - 1;
+  progress?.update(history.length, cursor);
 }
 
 async function goBack() {
   if (cursor <= 0) return false;
   cursor--;
+  progress?.update(history.length, cursor);
   await display(history[cursor], "prev");
   return true;
 }
@@ -122,6 +167,7 @@ async function goBack() {
 async function goForward() {
   if (cursor >= history.length - 1) return false;
   cursor++;
+  progress?.update(history.length, cursor);
   await display(history[cursor], "next");
   return true;
 }
@@ -205,8 +251,16 @@ async function draw({ showSpinner = false, direction = "next" } = {}) {
   drawing = true;
 
   try {
+    if (!cardOpen) {
+      // Coming back from the closed state, whatever triggered it.
+      cardOpen = true;
+      dock?.pin(false);
+      direction = "genie";
+    }
+
     const settings = await store.load();
     const pool = store.drawPool(settings);
+    dock?.mark(settings.active);
 
     if (!pool.length) {
       show(
@@ -272,6 +326,7 @@ async function draw({ showSpinner = false, direction = "next" } = {}) {
 
     if (!entry.offline) {
       remember(entry.block, entry.channel.slug);
+      dock?.refresh();
       prefetch(pool);
     }
   } catch (error) {
@@ -329,12 +384,42 @@ async function flashHint() {
   setTimeout(() => hint.classList.remove("hint--show"), 3200);
 }
 
+/** Genies the card away, leaving the dock as the only thing on screen. */
+function closeCard() {
+  if (!cardOpen) return;
+  cardOpen = false;
+  clearStage("genie");
+  dock.pin(true); // nothing else to aim at, so the dock stays out
+}
+
+progress = initProgress();
+
+dock = initDock({
+  isOpen: () => cardOpen,
+  onToggle: () => closeCard(),
+  onPick: async (slug) => {
+    // Send the current card away before anything is awaited. The new channel
+    // needs a fetch, and waiting on it would leave the click with no response
+    // for as long as the network takes.
+    clearStage("genie");
+
+    await store.update({ active: slug });
+    // A different channel invalidates the cached counts and anything queued.
+    forgetCount();
+    buffered = null;
+    cardOpen = true;
+    dock.pin(false);
+    draw({ showSpinner: true, direction: "genie" });
+  },
+});
+
 settingsPanel = initSettings({
   onChange: () => {
     // The channel or token may have changed, so cached counts and any
     // prefetched block are suspect.
     forgetCount();
     buffered = null;
+    dock.refresh();
     draw({ showSpinner: true });
   },
 });

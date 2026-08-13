@@ -93,6 +93,17 @@ export async function drawCached(slugs, avoid = []) {
   return pick[Math.floor(Math.random() * pick.length)];
 }
 
+/**
+ * An image to stand for a channel in the dock — the most recent one we've
+ * shown from it. Free, because the pool already holds these; no extra request
+ * just to decorate a tile.
+ */
+export async function thumbnailFor(slug) {
+  const pool = await readPool();
+  const hit = pool.find((e) => e.slug === slug && e.block?.image?.src);
+  return hit ? hit.block.image.src : "";
+}
+
 /* ---------------------------------------------------------- image cache */
 
 /** Stores an image for offline use. Fire-and-forget; failures are ignored. */

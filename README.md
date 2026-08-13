@@ -74,6 +74,26 @@ It reports who you're signed in as, how many channels import, whether the import
 hitting its page cap, and whether a private channel can be read and drawn from. The
 token is never printed or written to a file.
 
+## The dock
+
+Channels sit in a dock along the bottom edge, hidden until the pointer comes near it.
+Clicking a tile switches to that channel; clicking the active tile puts the card away
+and leaves just the dock. Settings still owns adding and removing channels — the dock
+is the switcher, not the manager.
+
+Opening and closing pours the card into its tile. A real macOS genie is a mesh warp,
+and CSS transforms are affine, so a rectangle can't actually be bent by one; what sells
+it is `clip-path` pinching the card into a neck while a non-uniform scale collapses it
+toward the tile, aimed by custom properties measured from the tile at runtime.
+
+Tile art comes from blocks you've already seen — the offline pool already holds them,
+so the dock costs no extra requests — falling back to initials for channels you haven't
+drawn from yet.
+
+Above the dock, one dash per block in this tab's history shows how far back <kbd>←</kbd>
+can take you and how much <kbd>→</kbd> has left to replay. It tracks history rather than
+position in a channel, because a random draw has no position to be at.
+
 ## Controls
 
 | Action | Key |
@@ -82,6 +102,8 @@ token is never printed or written to a file.
 | Next block | click around the card, <kbd>Space</kbd>, <kbd>R</kbd> |
 | Back | <kbd>←</kbd> |
 | Forward, then next | <kbd>→</kbd> |
+| Switch channel | click a dock tile |
+| Put the card away | click the active dock tile |
 | Settings | <kbd>S</kbd> |
 | Close settings | <kbd>Esc</kbd> |
 

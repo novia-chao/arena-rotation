@@ -180,6 +180,75 @@ a {
   animation: ambient-out 0.6s ease forwards;
 }
 
+/* ------------------------------------------------------------------ genie */
+
+/*
+ * Opening and closing a channel pours the card into its dock tile.
+ *
+ * A real genie is a mesh warp — the window bends along a curve — and CSS
+ * transforms are affine, so a rectangle cannot be bent by one. What sells it
+ * instead is two things happening together: clip-path pinches the card into a
+ * narrow neck while a non-uniform scale collapses it toward the tile. The
+ * origin is bottom-centre and --gx/--gy carry the offset to the tile, both set
+ * from JS since the tile's position isn't knowable in a stylesheet.
+ */
+@keyframes genie-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(var(--gx, 0), var(--gy, 60vh), 0) scale(0.05, 0.02);
+    clip-path: inset(0 46% 0 46% round 16px);
+    filter: blur(3px);
+  }
+  45% {
+    opacity: 1;
+    clip-path: inset(0 33% 0 33% round 16px);
+    filter: blur(0.5px);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    clip-path: inset(0 0 0 0 round 16px);
+    filter: blur(0);
+  }
+}
+
+@keyframes genie-out {
+  0% {
+    opacity: 1;
+    transform: none;
+    clip-path: inset(0 0 0 0 round 16px);
+    filter: blur(0);
+  }
+  55% {
+    opacity: 1;
+    clip-path: inset(0 34% 0 34% round 16px);
+    filter: blur(0.5px);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--gx, 0), var(--gy, 60vh), 0) scale(0.05, 0.02);
+    clip-path: inset(0 46% 0 46% round 16px);
+    filter: blur(3px);
+  }
+}
+
+.view--in-genie .card-frame,
+.view--bleed.view--in-genie {
+  transform-origin: 50% 100%;
+  animation: genie-in 0.82s cubic-bezier(0.2, 0.9, 0.25, 1) backwards;
+}
+
+.view--leaving.view--out-genie .card-frame,
+.view--bleed.view--leaving.view--out-genie {
+  transform-origin: 50% 100%;
+  animation: genie-out 0.68s cubic-bezier(0.6, 0, 0.75, 0.2) forwards;
+}
+
+/* The wash goes with it rather than lingering — the channel itself is leaving. */
+.view--leaving.view--out-genie .ambient {
+  animation: ambient-out 0.5s ease forwards;
+}
+
 /* ------------------------------------------------------ full-bleed motion */
 
 /*
@@ -748,11 +817,184 @@ body:hover .meta {
   color: var(--ink-faint);
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.5s;
+  transition:
+    opacity 0.5s,
+    transform 0.42s var(--ease-out);
 }
 
 .hint--show {
   opacity: 1;
+}
+
+body.dock-shown .hint {
+  transform: translateX(-50%) translateY(-7.4rem);
+}
+
+/* -------------------------------------------------------------------- dock */
+
+.dock {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  z-index: 6;
+  padding: 0.55rem 0.6rem 0.75rem;
+  transform: translate(-50%, calc(100% - 0.35rem));
+  opacity: 0;
+  transition:
+    transform 0.42s var(--ease-out),
+    opacity 0.3s;
+}
+
+.dock--shown {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
+.dock__items {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(20, 20, 22, 0.72);
+  backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.dock__tile {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  /* Grows from its base so the tile lifts out of the dock, never into it. */
+  transform-origin: 50% 100%;
+  transition: transform 0.28s var(--ease-out);
+}
+
+.dock__tile:hover,
+.dock__tile:focus-visible {
+  transform: scale(1.18) translateY(-2px);
+}
+
+.dock__face {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #1d1d20;
+  color: var(--ink-dim);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  transition: border-color 0.25s;
+}
+
+.dock__face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The "everything" tile: four dots rather than one channel's picture. */
+.dock__face--all {
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 12px;
+  place-items: stretch;
+}
+
+.dock__face--all i {
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+
+.dock__tile--active .dock__face {
+  border-color: rgba(244, 241, 234, 0.5);
+}
+
+/* Running-app dot, borrowed from the thing this is imitating. */
+.dock__tile--active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -0.42rem;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--ink);
+  transform: translateX(-50%);
+}
+
+.dock__label {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.5rem);
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(8, 8, 9, 0.9);
+  color: var(--ink);
+  font-size: 0.68rem;
+  white-space: nowrap;
+  transform: translateX(-50%) scale(0.86);
+  transform-origin: 50% 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.2s,
+    transform 0.2s var(--ease-out);
+}
+
+.dock__tile:hover .dock__label,
+.dock__tile:focus-visible .dock__label {
+  opacity: 1;
+  /* Cancels the tile's own scale so the label stays a constant size. */
+  transform: translateX(-50%) scale(0.847);
+}
+
+/* ---------------------------------------------------------------- progress */
+
+.progress {
+  position: fixed;
+  left: 50%;
+  bottom: 1.15rem;
+  z-index: 4;
+  display: flex;
+  gap: 3px;
+  width: min(22rem, 48vw);
+  transform: translateX(-50%);
+  pointer-events: none;
+  transition: transform 0.42s var(--ease-out);
+}
+
+/* Lifts clear of the dock and of the tile labels that rise above it. */
+body.dock-shown .progress {
+  transform: translateX(-50%) translateY(-7.4rem);
+}
+
+.progress i {
+  flex: 1;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(244, 241, 234, 0.14);
+  transition:
+    background 0.3s,
+    transform 0.3s var(--ease-out);
+}
+
+.progress i.is-seen {
+  background: rgba(244, 241, 234, 0.34);
+}
+
+.progress i.is-current {
+  background: var(--ink);
+  transform: scaleY(1.8);
 }
 
 .icon-button {
